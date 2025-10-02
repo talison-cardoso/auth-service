@@ -4,6 +4,5 @@ export class User {
     public passwordHash: string,
     public id: string,
     public email?: string | null,
-    public refreshToken?: string | null,
   ) {}
 }

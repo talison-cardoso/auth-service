@@ -86,14 +86,4 @@ export class PrismaUserRepository implements UserRepository {
       throw new AppError(`Erro ao deletar usuário: ${message}`, 500, error);
     }
   }
-
-  async updateRefreshToken(
-    userId: string,
-    refreshToken: string,
-  ): Promise<void> {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { refreshToken },
-    });
-  }
 }
