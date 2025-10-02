@@ -7,30 +7,19 @@ import { logger } from "@/utils/LoggerService";
 type TokenType = "access" | "refresh";
 
 export class JwtService implements TokenGenerator, TokenVerifier {
-  private getSecret(tokenType: TokenType): string {
-    if (tokenType === "access") {
-      if (!process.env.JWT_PRIVATE_KEY)
-        throw new AppError("JWT_ACCESS_SECRET não configurado", 500);
-      return process.env.JWT_PRIVATE_KEY;
-    }
-
-    if (tokenType === "refresh") {
-      if (!process.env.JWT_PRIVATE_KEY)
-        throw new AppError("JWT_REFRESH_SECRET não configurado", 500);
-      return process.env.JWT_PRIVATE_KEY;
-    }
-
-    throw new AppError("Tipo de token inválido", 500);
-  }
+  private secret = process.env.JWT_PRIVATE_KEY!;
 
   async generate(
     payload: object,
     expiresIn: string | number,
     tokenType: TokenType,
   ): Promise<string> {
-    const secret = this.getSecret(tokenType);
-    logger.debug(`Gerando token ${tokenType}`);
-    return jwt.sign(payload, secret, {
+    if (tokenType !== "access") {
+      logger.error(`Tentativa de gerar token JWT para tipo ${tokenType}`);
+      throw new AppError("JwtService só deve gerar Access Tokens", 500);
+    }
+    logger.debug(`Gerando Access Token (JWT)`);
+    return jwt.sign(payload, this.secret, {
       expiresIn,
       algorithm: "RS256",
     } as jwt.SignOptions);
@@ -40,11 +29,14 @@ export class JwtService implements TokenGenerator, TokenVerifier {
     token: string,
     tokenType: TokenType,
   ): Promise<T> {
-    const secret = this.getSecret(tokenType);
+    if (tokenType !== "access") {
+      logger.error(`Tentativa de verificar token JWT para tipo ${tokenType}`);
+      throw new AppError("JwtService só deve verificar Access Tokens", 500);
+    }
     try {
-      return jwt.verify(token, secret, { algorithms: ["RS256"] }) as T;
+      return jwt.verify(token, this.secret, { algorithms: ["RS256"] }) as T;
     } catch {
-      logger.error("Erro ao verificar token");
+      logger.error("Erro ao verificar Access Token (JWT)");
       throw new AppError("Token inválido ou expirado", 401);
     }
   }
