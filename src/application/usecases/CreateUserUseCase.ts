@@ -1,3 +1,4 @@
+import { AppError } from "@/domain/errors/AppError";
 import type { Hasher } from "../../domain/cryptography/Hasher";
 import type { CreateUserDTO } from "../../domain/dtos/CreateUserDTO";
 import type { User } from "../../domain/entities/User";
@@ -10,11 +11,10 @@ export class CreateUser {
   ) {}
 
   async execute(data: CreateUserDTO): Promise<User | Error> {
-    const usernameExists = await this.userRepository.findByUsername(
-      data.username,
-    );
+    const userExists = await this.userRepository.findByUsername(data.username);
 
-    if (usernameExists) throw new Error("Username already exists");
+    console.log({ userExists });
+    if (userExists) throw new AppError("Username already exists", 409);
 
     const hashedPassword = await this.hasher.hash(data.password);
 

@@ -3,7 +3,6 @@ import { CreateUser } from "@/application/usecases/CreateUserUseCase";
 import { BcryptHasher } from "../../cryptography/BcryptHasher";
 import { PrismaUserRepository } from "../../repositories/PrismaUserRepository";
 import { CreateUserController } from "../controllers/CreateUserController";
-import { ensureAuthenticated } from "../middlewares/ensureAuthenticated";
 
 const router = Router();
 
