@@ -7,7 +7,17 @@ import { logger } from "@/utils/LoggerService";
 type TokenType = "access" | "refresh";
 
 export class JwtService implements TokenGenerator, TokenVerifier {
-  private secret = process.env.JWT_PRIVATE_KEY!;
+  private readonly secret;
+
+  constructor() {
+    const envSecret = process.env.JWT_PRIVATE_KEY;
+
+    if (!envSecret) {
+      logger.error("JWT_PRIVATE_KEY não encontrado");
+      throw new AppError("JWT_PRIVATE_KEY não encontrado", 500);
+    }
+    this.secret = envSecret;
+  }
 
   async generate(
     payload: object,
