@@ -1,56 +1,88 @@
-import type { TokenGenerator } from "@/domain/cryptography/TokenGenerator";
-import type { TokenVerifier } from "@/domain/cryptography/TokenVerifier";
+import {
+  ACCESS_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_COOKIE_EXPIRATION_MS,
+} from "@/constants";
 import { AppError } from "@/domain/errors/AppError";
-import type { UserRepository } from "@/domain/repositories/UserRepository";
+import type { RefreshTokenRepository } from "@/domain/repositories/RefreshTokenRepository";
 import { logger } from "@/utils/LoggerService";
+import crypto from "node:crypto";
 
-interface RefreshTokenPayload {
-  sub: string;
-  username: string;
-  type: "refresh";
-}
+import type { TokenGenerator } from "@/domain/cryptography/TokenGenerator";
 
 export class RefreshTokenUseCase {
   constructor(
-    private userRepository: UserRepository,
+    private refreshTokenRepository: RefreshTokenRepository,
     private tokenGenerator: TokenGenerator,
-    private tokenVerifier: TokenVerifier,
   ) {}
 
   async execute(
-    refreshToken: string,
+    oldRefreshToken: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload = await this.tokenVerifier.verify<RefreshTokenPayload>(
-      refreshToken,
-      "refresh",
+    logger.debug("Iniciando processo de refresh token.");
+
+    // 1. Buscar o Refresh Token no Banco de Dados
+    const tokenRecord =
+      await this.refreshTokenRepository.findByToken(oldRefreshToken);
+
+    // 2. Validações de Segurança
+    if (!tokenRecord) {
+      logger.warn("Tentativa de refresh com token não encontrado/inválido.");
+      throw new AppError("Token inválido", 401);
+    }
+
+    if (tokenRecord.revoked) {
+      logger.warn(
+        `Tentativa de uso de token revogado pelo userId: ${tokenRecord.userId}.`,
+      );
+      throw new AppError("Token revogado", 401);
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      await this.refreshTokenRepository.revokeByToken(oldRefreshToken);
+      logger.warn(
+        `Token expirado revogado no banco para userId: ${tokenRecord.userId}.`,
+      );
+      throw new AppError("Token expirado", 401);
+    }
+
+    // 3. Buscar Dados do Usuário
+    const user = await this.refreshTokenRepository.findUserById(
+      tokenRecord.userId,
     );
+    if (!user) {
+      await this.refreshTokenRepository.revokeByToken(oldRefreshToken);
+      logger.error(
+        `Token órfão encontrado. Revogado. userId: ${tokenRecord.userId}.`,
+      );
+      throw new AppError("Usuário não encontrado", 404);
+    }
 
-    if (payload.type !== "refresh")
-      throw new AppError("Token inválido para refresh", 401);
+    // 4. Rotação: Revogar o token antigo antes de emitir o novo
+    await this.refreshTokenRepository.revokeByToken(oldRefreshToken);
+    logger.debug(`Refresh Token antigo revogado para ${user.username}.`);
 
-    const user = await this.userRepository.findById(payload.sub);
-    if (!user) throw new AppError("Usuário não encontrado", 404);
+    // 5. Geração de Novos Tokens
 
-    if (user.refreshToken !== refreshToken)
-      throw new AppError("Refresh token não corresponde ao registrado", 401);
-
+    // Novo Access Token (JWT) - Incluindo 'type: "access"' para o ensureAuthenticated
     const newAccessToken = await this.tokenGenerator.generate(
       { sub: user.id, username: user.username, type: "access" },
-      "15m",
+      ACCESS_TOKEN_EXPIRES_IN,
       "access",
     );
 
-    const newRefreshToken = await this.tokenGenerator.generate(
-      { sub: user.id, username: user.username, type: "refresh" },
-      "7d",
-      "refresh",
+    const newRefreshToken = crypto.randomBytes(32).toString("hex");
+    const expiresInMs = REFRESH_TOKEN_COOKIE_EXPIRATION_MS;
+    const expiresAt = new Date(Date.now() + expiresInMs);
+
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: newRefreshToken,
+      expiresAt: expiresAt,
+    });
+
+    logger.info(
+      `Refresh token atualizado e rotacionado com sucesso para ${user.username}.`,
     );
-
-    if (!user.id) throw new AppError("Usuário inválido", 500);
-
-    await this.userRepository.updateRefreshToken(user.id, newRefreshToken);
-
-    logger.info(`Refresh token atualizado com sucesso`);
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 }

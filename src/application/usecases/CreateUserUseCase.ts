@@ -13,7 +13,6 @@ export class CreateUser {
   async execute(data: CreateUserDTO): Promise<User | Error> {
     const userExists = await this.userRepository.findByUsername(data.username);
 
-    console.log({ userExists });
     if (userExists) throw new AppError("Username already exists", 409);
 
     const hashedPassword = await this.hasher.hash(data.password);
