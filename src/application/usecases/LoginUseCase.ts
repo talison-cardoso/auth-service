@@ -1,45 +1,57 @@
+import {
+  ACCESS_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_COOKIE_EXPIRATION_MS,
+} from "@/constants";
 import type { Hasher } from "@/domain/cryptography/Hasher";
 import type { TokenGenerator } from "@/domain/cryptography/TokenGenerator";
 import { AppError } from "@/domain/errors/AppError";
+import type { RefreshTokenRepository } from "@/domain/repositories/RefreshTokenRepository";
 import type { UserRepository } from "@/domain/repositories/UserRepository";
+import { logger } from "@/utils/LoggerService";
+import crypto from "node:crypto";
 
 export class LoginUseCase {
   constructor(
     private userRepository: UserRepository,
     private hasher: Hasher,
     private tokenGenerator: TokenGenerator,
+    private refreshTokenRepository: RefreshTokenRepository,
   ) {}
 
   async execute(
     username: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
+    logger.debug(`Tentativa de login para usuário: ${username}`);
+
     const user = await this.userRepository.findByUsername(username);
-    if (!user) throw new AppError("Usuário não encontrado", 401);
 
-    const passwordMatches = await this.hasher.compare(
-      password,
-      user.passwordHash,
-    );
-    if (!passwordMatches) throw new AppError("Credenciais inválidas", 401);
+    if (!user || !(await this.hasher.compare(password, user.passwordHash))) {
+      logger.warn(
+        `Falha de login para o usuário: ${username}. Credenciais inválidas.`,
+      );
+      throw new AppError("Credenciais inválidas", 401);
+    }
 
-    const payload = { sub: user.id, username: user.username };
-
+    // Geração do Access Token (JWT) - Mantendo username e type
     const accessToken = await this.tokenGenerator.generate(
-      { ...payload, type: "access" },
-      "15m",
+      { sub: user.id, username: user.username, type: "access" },
+      ACCESS_TOKEN_EXPIRES_IN,
       "access",
     );
 
-    const refreshToken = await this.tokenGenerator.generate(
-      { ...payload, type: "refresh" },
-      "7d",
-      "refresh",
-    );
+    // Geração e Armazenamento do Refresh Token (Token Opaco)
+    const refreshToken = crypto.randomBytes(32).toString("hex");
+    const expiresInMs = REFRESH_TOKEN_COOKIE_EXPIRATION_MS;
+    const expiresAt = new Date(Date.now() + expiresInMs);
 
-    if (!user.id) throw new AppError("Credenciais inválidas", 401);
-    await this.userRepository.updateRefreshToken(user.id, refreshToken);
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: expiresAt,
+    });
 
+    logger.info(`Login bem-sucedido para ${user.username}. Tokens emitidos.`);
     return { accessToken, refreshToken };
   }
 }
