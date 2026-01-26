@@ -1,6 +1,6 @@
 import {
   ACCESS_TOKEN_EXPIRES_IN,
-  REFRESH_TOKEN_COOKIE_EXPIRATION_MS,
+  REFRESH_TOKEN_EXPIRES_IN_MS,
 } from "@/constants";
 import { AppError } from "@/domain/errors/AppError";
 import type { RefreshTokenRepository } from "@/domain/repositories/RefreshTokenRepository";
@@ -71,7 +71,7 @@ export class RefreshTokenUseCase {
     );
 
     const newRefreshToken = crypto.randomBytes(32).toString("hex");
-    const expiresInMs = REFRESH_TOKEN_COOKIE_EXPIRATION_MS;
+    const expiresInMs = REFRESH_TOKEN_EXPIRES_IN_MS;
     const expiresAt = new Date(Date.now() + expiresInMs);
 
     await this.refreshTokenRepository.create({

@@ -3,7 +3,7 @@ import { AppError } from "@/domain/errors/AppError";
 import type { Request, Response } from "express";
 import { BaseController } from "../BaseController";
 import { logger } from "@/utils/LoggerService";
-import { REFRESH_TOKEN_COOKIE_EXPIRATION_MS } from "@/constants";
+import { REFRESH_TOKEN_EXPIRES_IN_MS } from "@/constants";
 
 export class RefreshTokenController extends BaseController {
   constructor(private readonly refreshTokenUseCase: RefreshTokenUseCase) {
@@ -24,8 +24,9 @@ export class RefreshTokenController extends BaseController {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         maxAge: REFRESH_TOKEN_COOKIE_EXPIRATION_MS,
-        path: "/token/refresh",
+        path: "/refresh",
         sameSite: "strict",
+        // sameSite: "none", // domain different
       });
 
       logger.info("Tokens atualizados e rotacionados com sucesso.");
