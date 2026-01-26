@@ -1,6 +1,6 @@
 import {
   ACCESS_TOKEN_EXPIRES_IN,
-  REFRESH_TOKEN_COOKIE_EXPIRATION_MS,
+  REFRESH_TOKEN_EXPIRES_IN_MS,
 } from "@/constants";
 import type { Hasher } from "@/domain/cryptography/Hasher";
 import type { TokenGenerator } from "@/domain/cryptography/TokenGenerator";
@@ -42,7 +42,7 @@ export class LoginUseCase {
 
     // Geração e Armazenamento do Refresh Token (Token Opaco)
     const refreshToken = crypto.randomBytes(32).toString("hex");
-    const expiresInMs = REFRESH_TOKEN_COOKIE_EXPIRATION_MS;
+    const expiresInMs = REFRESH_TOKEN_EXPIRES_IN_MS;
     const expiresAt = new Date(Date.now() + expiresInMs);
 
     await this.refreshTokenRepository.create({

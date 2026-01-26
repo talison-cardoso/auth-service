@@ -1,37 +1,45 @@
 import { Router } from "express";
+
 import { LoginUseCase } from "@/application/usecases/LoginUseCase";
 import { RefreshTokenUseCase } from "@/application/usecases/RefreshTokenUseCase";
-import { BcryptHasher } from "@/infra/cryptography/BcryptHasher";
-import { JwtService } from "@/infra/cryptography/JwtService";
-import { PrismaUserRepository } from "@/infra/repositories/PrismaUserRepository";
+import { LogoutUseCase } from "@/application/usecases/LogoutUseCase";
+
 import { LoginController } from "../controllers/LoginController";
 import { RefreshTokenController } from "../controllers/RefreshTokenController";
-import { PrismaRefreshTokenRepository } from "@/infra/repositories/PrismaRefreshTokenRepository";
+import { LogoutController } from "../controllers/LogoutController";
+
+import {
+  userRepository,
+  refreshTokenRepository,
+  hasher,
+  tokenService,
+} from "@/infra/container";
 
 const router = Router();
 
-const userRepository = new PrismaUserRepository();
-const refreshTokenRepository = new PrismaRefreshTokenRepository();
-const bcryptHasher = new BcryptHasher();
-const jwtService = new JwtService();
-
+/* UseCases */
 const loginUseCase = new LoginUseCase(
   userRepository,
-  bcryptHasher,
-  jwtService,
+  hasher,
+  tokenService,
   refreshTokenRepository,
 );
+
 const refreshTokenUseCase = new RefreshTokenUseCase(
   refreshTokenRepository,
-  jwtService,
+  tokenService,
 );
 
+const logoutUseCase = new LogoutUseCase(refreshTokenRepository);
+
+/* Controllers */
 const loginController = new LoginController(loginUseCase);
 const refreshTokenController = new RefreshTokenController(refreshTokenUseCase);
+const logoutController = new LogoutController(logoutUseCase);
 
+/* Routes */
 router.post("/login", loginController.getHandler());
 router.post("/refresh", refreshTokenController.getHandler());
-// router.post("/logout", loginController.logoutHandler());
-// router.post("/jwks", loginController.jwksHandler()); // TODO: Implement -
+router.post("/logout", logoutController.getHandler());
 
 export default router;
