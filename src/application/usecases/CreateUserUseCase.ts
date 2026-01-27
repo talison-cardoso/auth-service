@@ -10,7 +10,7 @@ export class CreateUser {
     private readonly hasher: Hasher,
   ) {}
 
-  async execute(data: CreateUserDTO): Promise<User | Error> {
+  async execute(data: CreateUserDTO): Promise<User> {
     const userExists = await this.userRepository.findByUsername(data.username);
 
     if (userExists) throw new AppError("Username already exists", 409);

@@ -42,8 +42,6 @@ export class CreateUserController extends BaseController {
         userValidation.data,
       );
 
-      if (createdUser instanceof Error) throw new AppError(createdUser.message);
-
       logger.info(`User created: ${createdUser.username}`);
       return res.status(201).json({
         user: { id: createdUser.id, username: createdUser.username },
